@@ -1,0 +1,16 @@
+name: LiteItemShow
+main: ml.mcos.liteitemshow.LiteItemShow
+version: 1.0.0
+api-version: 1.13
+author: unco_
+commands:
+  LiteItemShow:
+    usage: '/LiteItemShow <reload|version>'
+    aliases: lis
+    permission: LiteItemShow.admin
+    permission-message: '§cYou don''t have permission!'
+permissions:
+  LiteItemShow.admin:
+    default: op
+  LiteItemShow.show:
+    default: true
