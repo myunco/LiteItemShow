@@ -1,6 +1,7 @@
 package ml.mcos.liteitemshow;
 
 import ml.mcos.liteitemshow.metrics.Metrics;
+import ml.mcos.liteitemshow.nbt.NMS;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
@@ -18,47 +19,27 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.lang.reflect.Method;
 import java.util.List;
 
 public class LiteItemShow extends JavaPlugin implements Listener {
     public String keyword;
-    Class<?> NMS_NBTTagCompound;
-    Class<?> OBC_CraftItemStack;
-    Class<?> NMS_ItemStack;
-    Method OBC_CraftItemStack_asNMSCopy;
-    Method NMS_ItemStack_save;
-    Method NMS_ItemStack_a;
     boolean fixedServer;
-    int MCVersion;
+    int mcVersion;
+    NMS nms;
 
     @Override
     public void onEnable() {
         initConfig();
-        String OBCPackage = getServer().getClass().getPackage().getName();
-        String version = OBCPackage.substring(23);
         try {
-            MCVersion = Integer.parseInt(version.split("_")[1]);
-            OBC_CraftItemStack = Class.forName(OBCPackage + ".inventory.CraftItemStack");
-            if (MCVersion < 17) {
-                String NMSPackage = "net.minecraft.server." + version;
-                NMS_NBTTagCompound = Class.forName(NMSPackage + ".NBTTagCompound");
-                NMS_ItemStack = Class.forName(NMSPackage + ".ItemStack");
-                if (MCVersion == 12) {
-                    fixedServer = getServer().getName().equals("CatServer") || getServer().getName().equals("Paper");
-                    NMS_ItemStack_a = NMS_ItemStack.getMethod("a");
-                }
-            } else {
-                NMS_NBTTagCompound = Class.forName("net.minecraft.nbt.NBTTagCompound");
-                NMS_ItemStack = Class.forName("net.minecraft.world.item.ItemStack");
-            }
-            OBC_CraftItemStack_asNMSCopy = OBC_CraftItemStack.getMethod("asNMSCopy", ItemStack.class);
-            NMS_ItemStack_save = NMS_ItemStack.getMethod("save", NMS_NBTTagCompound);
+            mcVersion = Integer.parseInt(getServer().getBukkitVersion().replace('-', '.').split("\\.")[1]);
+            getLogger().info("minecraft version: 1." + mcVersion);
+            fixedServer = getServer().getName().equals("CatServer") || getServer().getName().equals("Paper");
+            nms = new NMS(this);
             getServer().getPluginManager().registerEvents(this, this);
             new Metrics(this, 13325);
         } catch (Exception e) {
             e.printStackTrace();
-            getLogger().info("[LiteItemShow] 插件加载出错：不受支持的服务端版本");
+            getLogger().severe("插件加载出错：不受支持的服务端版本");
         }
     }
 
@@ -98,15 +79,6 @@ public class LiteItemShow extends JavaPlugin implements Listener {
         sender.sendMessage("§8[§3LiteItemShow§8] " + msg);
     }
 
-    private String getItemNBT(ItemStack item) {
-        try {
-            return NMS_ItemStack_save.invoke(OBC_CraftItemStack_asNMSCopy.invoke(OBC_CraftItemStack, item), NMS_NBTTagCompound.newInstance()).toString();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return "{id:\"minecraft:air\"}";
-    }
-
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void asyncPlayerChatEvent(AsyncPlayerChatEvent event) {
         String msg = event.getMessage();
@@ -116,7 +88,7 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                 ItemMeta meta = item.getItemMeta();
                 if (meta != null) {
                     event.setCancelled(true);
-                    String nbt = getItemNBT(item);
+                    String nbt = nms.getItemNBT(item);
                     ComponentBuilder builder = new ComponentBuilder("");
                     builder.append(TextComponent.fromLegacyText(getTextLeft(event.getFormat(), "%2$s").replaceAll("%1\\$s", event.getPlayer().getDisplayName())));
                     TextComponent itemInfo = new TextComponent("[");
@@ -126,13 +98,13 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                             itemInfo.addExtra(component);
                         }
                     } else {
-                        String key = MCVersion == 12 ? getTranslateKey(item) : getTranslateKey(item.getType().getKey().toString(), item.getType().isBlock());
+                        String key = mcVersion == 12 ? nms.getTranslateKey(item) : getTranslateKey(item.getType().getKey().toString(), item.getType().isBlock());
                         itemInfo.addExtra(new TranslatableComponent(key));
                     }
                     itemInfo.addExtra("]");
                     itemInfo.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new BaseComponent[]{new TextComponent(nbt)}));
                     if (msg.equals(keyword)) {
-                        if (MCVersion == 12) {
+                        if (mcVersion == 12) {
                             builder.append(new BaseComponent[]{itemInfo});
                         } else {
                             builder.append(itemInfo);
@@ -140,13 +112,13 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                     } else {
                         String left = getTextLeft(msg, keyword);
                         builder.append(TextComponent.fromLegacyText(left));
-                        if (MCVersion == 12) {
+                        if (mcVersion == 12) {
                             builder.append(new BaseComponent[]{itemInfo});
                         } else {
                             builder.append(itemInfo);
                         }
                         String color = org.bukkit.ChatColor.getLastColors(left);
-                        builder.append(TextComponent.fromLegacyText(color + getTextRight(msg, keyword)), MCVersion != 12 || fixedServer ? ComponentBuilder.FormatRetention.NONE : ComponentBuilder.FormatRetention.ALL);
+                        builder.append(TextComponent.fromLegacyText(color + getTextRight(msg, keyword)), mcVersion != 12 || fixedServer ? ComponentBuilder.FormatRetention.NONE : ComponentBuilder.FormatRetention.ALL);
                     }
                     BaseComponent[] messages = builder.create();
                     getServer().spigot().broadcast(builder.create());
@@ -154,15 +126,6 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                 }
             }
         }
-    }
-
-    private String getTranslateKey(ItemStack item) {
-        try {
-            return NMS_ItemStack_a.invoke(OBC_CraftItemStack_asNMSCopy.invoke(OBC_CraftItemStack, item)) + ".name";
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return "tile.air.name";
     }
 
     private static String getTranslateKey(String id, boolean isBlock) {
