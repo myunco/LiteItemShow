@@ -90,9 +90,117 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                     event.setCancelled(true);
                     String nbt = nms.getItemNBT(item);
                     ComponentBuilder builder = new ComponentBuilder("");
-                    builder.append(TextComponent.fromLegacyText(getTextLeft(event.getFormat(), "%2$s").replaceAll("%1\\$s", event.getPlayer().getDisplayName())));
+                    builder.append(TextComponent.fromLegacyText(getTextLeft(event.getFormat(), "%2$s").replaceAll("%1\\$s", "").replaceAll("<> ","")));
+                    String left = getTextLeft(msg, keyword);
+                    String color = org.bukkit.ChatColor.getLastColors(left);
+                    builder.append(TextComponent.fromLegacyText(color +"<"+event.getPlayer().getDisplayName()+"> "), mcVersion != 12 || fixedServer ? ComponentBuilder.FormatRetention.NONE : ComponentBuilder.FormatRetention.ALL);
+
+                    //fixed a bug here - Bluemangoo
+                    /*
+                    bug occurs as the server has installed the "PlayerTitle" plugin or similar plugins
+                    when the player's title end with bolded character, the whole line will be bolded(if it contains keyword)
+                    fixed by resetting the format
+                     */
+
+                    //TODO:bug here:half more space
+                    /*
+                    here's a half more space before the player's name
+                    for example:
+                     - when the plugin is unloaded
+                           <bluemangoo> look at my [item]
+                     - when the plugin is loaded
+                           <bluemangoo>  look at my [Best Sword]
+                     see it?
+                     what's strange, there is not even a more entire space
+                     I mean, the width does not reach an entire space
+                     maybe I see it wrongly :)
+                     fixed a bug and another appears 💦💦💦
+                     */
+
                     TextComponent itemInfo = new TextComponent("[");
-                    itemInfo.setColor(ChatColor.AQUA);
+                    boolean flag=false;
+                    boolean uncommonFlag=false;
+                    boolean rareFlag=false;
+                    boolean epicFlag=false;
+                    Material[] uncommonList={
+                            Material.DRAGON_BREATH,
+                            Material.EXPERIENCE_BOTTLE,
+                            Material.ELYTRA,
+                            Material.ENCHANTED_BOOK,
+                            Material.CREEPER_HEAD,
+                            Material.PLAYER_HEAD,
+                            Material.DRAGON_HEAD,
+                            Material.PISTON_HEAD,
+                            Material.ZOMBIE_HEAD,
+                            Material.HEART_OF_THE_SEA,
+                            Material.NETHER_STAR,
+                            Material.TOTEM_OF_UNDYING
+                    };
+                    Material[] rareList={
+                            Material.BEACON,
+                            Material.CONDUIT,
+                            Material.END_CRYSTAL,
+                            Material.GOLDEN_APPLE,
+                    };
+                    Material[] epicList={
+                            Material.COMMAND_BLOCK,
+                            Material.CHAIN_COMMAND_BLOCK,
+                            Material.REPEATING_COMMAND_BLOCK,
+                            Material.COMMAND_BLOCK_MINECART,
+                            Material.DRAGON_EGG,
+                            Material.ENCHANTED_GOLDEN_APPLE,
+                            Material.KNOWLEDGE_BOOK,
+                            Material.STRUCTURE_BLOCK,
+                            Material.STRUCTURE_VOID
+                    };
+                    for(Material material:uncommonList){
+                        if(item.getType().equals(material)){
+                            uncommonFlag=true;
+                            break;
+                        }
+                    }
+                    if(item.getType().isRecord()){
+                        rareFlag=true;
+                    }else{
+                        for(Material material:rareList){
+                            if(item.getType().equals(material)){
+                                rareFlag=true;
+                                break;
+                            }
+                        }
+                    }for(Material material:epicList){
+                        if(item.getType().equals(material)){
+                            epicFlag=true;
+                            break;
+                        }
+                    }
+                    if(uncommonFlag){
+                        itemInfo.setColor(ChatColor.YELLOW);
+                        flag=true;
+                    }
+                    if(rareFlag){
+                        itemInfo.setColor(ChatColor.AQUA);
+                        flag=true;
+                    }
+                    if(epicFlag){
+                        itemInfo.setColor(ChatColor.DARK_PURPLE);
+                        flag=true;
+                    }
+                    if(nbt.contains("Enchantments:[")&!nbt.contains("Enchantments:[]")){
+                        itemInfo.setColor(ChatColor.AQUA);
+                        flag=true;
+                    }
+                    if(!flag){
+                        itemInfo.setColor(ChatColor.WHITE);
+                    }
+                    //new feature here - Bluemangoo
+                    /*
+                    set the color of name like what you see on your hand :)
+                    correspondence between items and colors come from Minecraft Wiki
+                    wiki: https://minecraft.fandom.com/wiki/Rarity
+                     */
+
+
                     if (meta.hasDisplayName()) {
                         for (BaseComponent component : TextComponent.fromLegacyText(meta.getDisplayName())) {
                             itemInfo.addExtra(component);
@@ -110,14 +218,12 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                             builder.append(itemInfo);
                         }
                     } else {
-                        String left = getTextLeft(msg, keyword);
                         builder.append(TextComponent.fromLegacyText(left));
                         if (mcVersion == 12) {
                             builder.append(new BaseComponent[]{itemInfo});
                         } else {
                             builder.append(itemInfo);
                         }
-                        String color = org.bukkit.ChatColor.getLastColors(left);
                         builder.append(TextComponent.fromLegacyText(color + getTextRight(msg, keyword)), mcVersion != 12 || fixedServer ? ComponentBuilder.FormatRetention.NONE : ComponentBuilder.FormatRetention.ALL);
                     }
                     BaseComponent[] messages = builder.create();
