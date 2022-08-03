@@ -90,122 +90,126 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                     event.setCancelled(true);
                     String nbt = nms.getItemNBT(item);
                     ComponentBuilder builder = new ComponentBuilder("");
-                    builder.append(TextComponent.fromLegacyText(getTextLeft(event.getFormat(), "%2$s").replaceAll("%1\\$s", "").replaceAll("<> ","")));
+
+                    // 1.1.1版本更新：
+                    // 修复1.1.0中 展示物品时聊天颜色会覆盖名字颜色的问题
+                    // 修复展示的物品名字受消息中的颜色格式影响的问题(如加粗、斜体、下划线等)
+
+                    // %1$s = 玩家名  %2$s = 聊天消息内容
+                    //System.out.println("event.getFormat() = " + event.getFormat());
+                    // event.getFormat() = [ 称2号 ] [world]测试称号<%1$s> %2$s
+
+                    // 将替换了名字但没有聊天内容的消息添加到builder  结果例如：[ 称2号 ] [world]测试称号<玩家名>
+                    builder.append(TextComponent.fromLegacyText(getTextLeft(event.getFormat(), "%2$s").replace("%1$s", event.getPlayer().getDisplayName())));
+
+                    // 获取关键词左边的消息
                     String left = getTextLeft(msg, keyword);
+
+                    // 获取字符串中最后的颜色 以便后面用来还原关键词右边消息的颜色
                     String color = org.bukkit.ChatColor.getLastColors(left);
-                    builder.append(TextComponent.fromLegacyText(color +"<"+event.getPlayer().getDisplayName()+"> "), mcVersion != 12 || fixedServer ? ComponentBuilder.FormatRetention.NONE : ComponentBuilder.FormatRetention.ALL);
-
-                    //fixed a bug here - Bluemangoo
-                    /*
-                    bug occurs as the server has installed the "PlayerTitle" plugin or similar plugins
-                    when the player's title end with bolded character, the whole line will be bolded(if it contains keyword)
-                    fixed by resetting the format
-                     */
-
-                    //TODO:bug here:half more space
-                    /*
-                    here's a half more space before the player's name
-                    for example:
-                     - when the plugin is unloaded
-                           <bluemangoo> look at my [item]
-                     - when the plugin is loaded
-                           <bluemangoo>  look at my [Best Sword]
-                     see it?
-                     what's strange, there is not even a more entire space
-                     I mean, the width does not reach an entire space
-                     maybe I see it wrongly :)
-                     fixed a bug and another appears 💦💦💦
-                     */
+                    //System.out.println("color = " + color.replace('§', '&'));
 
                     TextComponent itemInfo = new TextComponent("[");
-                    boolean flag=false;
-                    boolean uncommonFlag=false;
-                    boolean rareFlag=false;
-                    boolean epicFlag=false;
-                    Material[] uncommonList={
-                            Material.DRAGON_BREATH,
-                            Material.EXPERIENCE_BOTTLE,
-                            Material.ELYTRA,
-                            Material.ENCHANTED_BOOK,
-                            Material.CREEPER_HEAD,
-                            Material.PLAYER_HEAD,
-                            Material.DRAGON_HEAD,
-                            Material.PISTON_HEAD,
-                            Material.ZOMBIE_HEAD,
-                            Material.HEART_OF_THE_SEA,
-                            Material.NETHER_STAR,
-                            Material.TOTEM_OF_UNDYING
-                    };
-                    Material[] rareList={
-                            Material.BEACON,
-                            Material.CONDUIT,
-                            Material.END_CRYSTAL,
-                            Material.GOLDEN_APPLE,
-                    };
-                    Material[] epicList={
-                            Material.COMMAND_BLOCK,
-                            Material.CHAIN_COMMAND_BLOCK,
-                            Material.REPEATING_COMMAND_BLOCK,
-                            Material.COMMAND_BLOCK_MINECART,
-                            Material.DRAGON_EGG,
-                            Material.ENCHANTED_GOLDEN_APPLE,
-                            Material.KNOWLEDGE_BOOK,
-                            Material.STRUCTURE_BLOCK,
-                            Material.STRUCTURE_VOID
-                    };
-                    for(Material material:uncommonList){
-                        if(item.getType().equals(material)){
-                            uncommonFlag=true;
-                            break;
-                        }
-                    }
-                    if(item.getType().isRecord()){
-                        rareFlag=true;
-                    }else{
-                        for(Material material:rareList){
-                            if(item.getType().equals(material)){
-                                rareFlag=true;
-                                break;
-                            }
-                        }
-                    }for(Material material:epicList){
-                        if(item.getType().equals(material)){
-                            epicFlag=true;
-                            break;
-                        }
-                    }
-                    if(uncommonFlag){
-                        itemInfo.setColor(ChatColor.YELLOW);
-                        flag=true;
-                    }
-                    if(rareFlag){
-                        itemInfo.setColor(ChatColor.AQUA);
-                        flag=true;
-                    }
-                    if(epicFlag){
-                        itemInfo.setColor(ChatColor.DARK_PURPLE);
-                        flag=true;
-                    }
-                    if(nbt.contains("Enchantments:[")&!nbt.contains("Enchantments:[]")){
-                        itemInfo.setColor(ChatColor.AQUA);
-                        flag=true;
-                    }
-                    if(!flag){
-                        itemInfo.setColor(ChatColor.WHITE);
-                    }
-                    //new feature here - Bluemangoo
-                    /*
-                    set the color of name like what you see on your hand :)
-                    correspondence between items and colors come from Minecraft Wiki
-                    wiki: https://minecraft.fandom.com/wiki/Rarity
-                     */
 
-
+                    // 如果物品有显示名 那就直接用显示名称
                     if (meta.hasDisplayName()) {
                         for (BaseComponent component : TextComponent.fromLegacyText(meta.getDisplayName())) {
                             itemInfo.addExtra(component);
                         }
-                    } else {
+                    } else { // 没有显示名称 只能尝试获取翻译名称显示
+                        //fixed a bug here - Bluemangoo
+                        /*
+                        bug occurs as the server has installed the "PlayerTitle" plugin or similar plugins
+                        when the player's title end with bolded character, the whole line will be bolded(if it contains keyword)
+                        fixed by resetting the format
+                         */
+
+                        // 修复1.12版本无法使用的问题 - myunco
+                        if (mcVersion > 12) {
+                            Material[] uncommonList = {
+                                    Material.DRAGON_BREATH,
+                                    Material.EXPERIENCE_BOTTLE,
+                                    Material.ELYTRA,
+                                    Material.ENCHANTED_BOOK,
+                                    Material.CREEPER_HEAD,
+                                    Material.PLAYER_HEAD,
+                                    Material.DRAGON_HEAD,
+                                    Material.PISTON_HEAD,
+                                    Material.ZOMBIE_HEAD,
+                                    Material.HEART_OF_THE_SEA,
+                                    Material.NETHER_STAR,
+                                    Material.TOTEM_OF_UNDYING
+                            };
+                            Material[] rareList = {
+                                    Material.BEACON,
+                                    Material.CONDUIT,
+                                    Material.END_CRYSTAL,
+                                    Material.GOLDEN_APPLE
+                            };
+                            Material[] epicList = {
+                                    Material.COMMAND_BLOCK,
+                                    Material.CHAIN_COMMAND_BLOCK,
+                                    Material.REPEATING_COMMAND_BLOCK,
+                                    Material.COMMAND_BLOCK_MINECART,
+                                    Material.DRAGON_EGG,
+                                    Material.ENCHANTED_GOLDEN_APPLE,
+                                    Material.KNOWLEDGE_BOOK,
+                                    Material.STRUCTURE_BLOCK,
+                                    Material.STRUCTURE_VOID
+                            };
+                            boolean flag = true;
+                            for (Material material : uncommonList) {
+                                if (item.getType().equals(material)) {
+                                    itemInfo.setColor(ChatColor.YELLOW);
+                                    flag = false;
+                                    break;
+                                }
+                            }
+                            if (flag) {
+                                if (item.getType().isRecord()) {
+                                    itemInfo.setColor(ChatColor.AQUA);
+                                    flag = false;
+                                } else {
+                                    for (Material material : rareList) {
+                                        if (item.getType().equals(material)) {
+                                            itemInfo.setColor(ChatColor.AQUA);
+                                            flag = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (flag) {
+                                for (Material material : epicList) {
+                                    if (item.getType().equals(material)) {
+                                        flag = false;
+                                        itemInfo.setColor(ChatColor.LIGHT_PURPLE);
+                                        break;
+                                    }
+                                }
+                            }
+                            if (flag) {
+                                if (nbt.contains("Enchantments:[")) {
+                                    itemInfo.setColor(ChatColor.AQUA);
+                                } else {
+                                    itemInfo.setColor(ChatColor.WHITE);
+                                }
+                            }
+                        } else {
+                            if (item.getType().isRecord() || nbt.contains("ench:[")) {
+                                itemInfo.setColor(ChatColor.AQUA);
+                            } else {
+                                itemInfo.setColor(ChatColor.WHITE);
+                            }
+                        }
+
+                        //new feature here - Bluemangoo
+                        /*
+                        set the color of name like what you see on your hand :)
+                        correspondence between items and colors come from Minecraft Wiki
+                        wiki: https://minecraft.fandom.com/wiki/Rarity
+                         */
+
                         String key = mcVersion == 12 ? nms.getTranslateKey(item) : getTranslateKey(item.getType().getKey().toString(), item.getType().isBlock());
                         itemInfo.addExtra(new TranslatableComponent(key));
                     }
@@ -218,7 +222,13 @@ public class LiteItemShow extends JavaPlugin implements Listener {
                             builder.append(itemInfo);
                         }
                     } else {
-                        builder.append(TextComponent.fromLegacyText(left));
+                        builder.append(TextComponent.fromLegacyText(left + "§r"));
+                        // 尾部 + "§r"的方式在低版本有效但在高版本失效 所以再用下面的方法重置一下格式
+                        builder.bold(false)
+                                .italic(false)
+                                .underlined(false)
+                                .strikethrough(false)
+                                .obfuscated(false);
                         if (mcVersion == 12) {
                             builder.append(new BaseComponent[]{itemInfo});
                         } else {
